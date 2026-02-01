@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - RAG Chat{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-6 h-[calc(100vh-4rem)] flex flex-col" data-session-id="{% if session_id %}{{ session_id }}{% endif %}">
+    <!-- Messages Container -->
+    <div id="messages" class="flex-1 overflow-y-auto space-y-4 mb-4">
+        <!-- Empty State -->
+        <div id="empty-state" class="text-center py-12 text-text-muted">
+            <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <p class="text-lg font-medium">Start a conversation</p>
+            <p class="text-sm mt-2">Ask questions about your knowledge base</p>
+        </div>
+    </div>
+
+    <!-- Input Form -->
+    <form id="chat-form" class="flex gap-2 items-end">
+        <textarea
+            id="message-input"
+            placeholder="Type your message... (Shift+Enter for new line)"
+            autocomplete="off"
+            rows="1"
+            class="flex-1 px-4 py-3 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text resize-none max-h-32 overflow-y-auto"
+            required
+        ></textarea>
+        <button
+            type="submit"
+            id="send-btn"
+            class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center min-w-[60px] h-[45px]"
+        >
+            <svg id="send-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+            <svg id="loading-icon" class="w-5 h-5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </button>
+    </form>
+</div>
+
+<script>
+const API_BASE = '{{ api_base_url }}';
+let sessionId = null;
+let isStreaming = false;
+
+// Initialize session ID from template data attribute if provided
+const containerElement = document.querySelector('[data-session-id]');
+if (containerElement && containerElement.dataset.sessionId) {
+    sessionId = containerElement.dataset.sessionId;
+}
+
+// Extract session ID from URL if present (URL takes precedence)
+const urlPath = window.location.pathname;
+const sessionMatch = urlPath.match(/^\/chat\/([^\/]+)$/);
+if (sessionMatch) {
+    sessionId = sessionMatch[1];
+}
+
+// Load chat history if session ID exists
+async function loadChatHistory() {
+    if (!sessionId) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/chat/history/${sessionId}`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.history && data.history.length > 0) {
+                // Display all messages from history
+                data.history.forEach(msg => {
+                    if (msg.role === 'user' || msg.role === 'assistant') {
+                        addMessage(msg.role, msg.content);
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load chat history:', error);
+    }
+}
+
+// Load history on page load
+loadChatHistory();
+
+// Auto-resize textarea
+const messageInput = document.getElementById('message-input');
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 128) + 'px';
+});
+
+// Handle Shift+Enter for new line, Enter for submit
+messageInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!isStreaming && this.value.trim()) {
+            document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+        }
+    }
+});
+
+// Add message to chat
+function addMessage(role, content, isStreamingMsg = false) {
+    const messagesDiv = document.getElementById('messages');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (emptyState) emptyState.remove();
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `flex gap-3 ${role === 'user' ? 'flex-row-reverse' : ''}`;
+    messageDiv.id = isStreamingMsg ? 'streaming-message' : `msg-${Date.now()}`;
+    
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = `w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${role === 'user' ? 'bg-primary' : 'bg-secondary'}`;
+    avatar.innerHTML = role === 'user' 
+        ? '<svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
+        : '<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>';
+    
+    // Content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = `rounded-lg px-4 py-3 max-w-[80%] ${role === 'user' ? 'bg-primary text-white' : 'bg-surface border border-border'}`;
+    
+    if (isStreamingMsg) {
+        const textP = document.createElement('p');
+        textP.className = 'whitespace-pre-wrap break-words';
+        textP.id = 'streaming-text';
+        textP.textContent = '';
+        contentDiv.appendChild(textP);
+        const cursor = document.createElement('span');
+        cursor.className = 'inline-block w-2 h-4 bg-primary ml-1 animate-pulse';
+        contentDiv.appendChild(cursor);
+    } else {
+        const textP = document.createElement('p');
+        textP.className = 'whitespace-pre-wrap break-words';
+        textP.textContent = content;
+        contentDiv.appendChild(textP);
+    }
+    
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(contentDiv);
+    messagesDiv.appendChild(messageDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Handle form submission
+document.getElementById('chat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const message = messageInput.value.trim();
+    
+    if (!message || isStreaming) return;
+
+    messageInput.value = '';
+    messageInput.style.height = 'auto';
+    addMessage('user', message);
+    
+    const sendBtn = document.getElementById('send-btn');
+    const sendIcon = document.getElementById('send-icon');
+    const loadingIcon = document.getElementById('loading-icon');
+    
+    sendBtn.disabled = true;
+    sendIcon.classList.add('hidden');
+    loadingIcon.classList.remove('hidden');
+    isStreaming = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/chat/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(sessionId && { 'X-Session-ID': sessionId })
+            },
+            body: JSON.stringify({ message, session_id: sessionId })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        
+        addMessage('assistant', '', true);
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        
+                        if (data.token) {
+                            fullText += data.token;
+                            const streamingText = document.getElementById('streaming-text');
+                            if (streamingText) {
+                                streamingText.textContent = fullText;
+                                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+                            }
+                        }
+                        
+                        if (data.done) {
+                            const newSessionId = data.session_id;
+                            if (newSessionId && newSessionId !== sessionId) {
+                                sessionId = newSessionId;
+                                // Update URL to include session ID
+                                const newUrl = `/chat/${sessionId}`;
+                                window.history.pushState({}, '', newUrl);
+                                // Update links in header
+                                const chatLink = document.getElementById('chat-link');
+                                const logoLink = document.getElementById('logo-link');
+                                if (chatLink) chatLink.href = newUrl;
+                                if (logoLink) logoLink.href = newUrl;
+                            }
+                            const streamingMsg = document.getElementById('streaming-message');
+                            if (streamingMsg) {
+                                streamingMsg.id = `msg-${Date.now()}`;
+                                const textEl = streamingMsg.querySelector('#streaming-text');
+                                if (textEl) {
+                                    textEl.textContent = fullText;
+                                    textEl.id = '';
+                                }
+                                streamingMsg.querySelector('span')?.remove();
+                            }
+                            isStreaming = false;
+                        }
+                        
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                    } catch (e) {
+                        // Skip invalid JSON
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        addMessage('assistant', `Error: ${error.message}`, false);
+        isStreaming = false;
+    } finally {
+        sendBtn.disabled = false;
+        sendIcon.classList.remove('hidden');
+        loadingIcon.classList.add('hidden');
+    }
+});
+</script>
+{% endblock %}

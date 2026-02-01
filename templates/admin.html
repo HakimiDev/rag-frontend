@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - RAG Chat{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold mb-6 text-text">Admin - Knowledge Ingestion</h1>
+
+    <!-- Admin Key -->
+    <div class="mb-6">
+        <label class="block text-sm font-medium mb-2 text-text">Admin API Key *</label>
+        <input
+            id="admin-key"
+            type="password"
+            placeholder="Enter your admin API key"
+            class="w-full px-4 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text"
+        />
+    </div>
+
+    <!-- Mode Toggle -->
+    <div class="mb-6 flex gap-2">
+        <button
+            id="btn-single"
+            onclick="setMode('single')"
+            class="px-4 py-2 rounded-lg transition-colors font-medium bg-primary text-white"
+        >
+            Single Document
+        </button>
+        <button
+            id="btn-batch"
+            onclick="setMode('batch')"
+            class="px-4 py-2 rounded-lg transition-colors font-medium bg-surface text-text-muted hover:bg-surface-hover"
+        >
+            Batch Documents
+        </button>
+        <button
+            id="btn-json"
+            onclick="setMode('json')"
+            class="px-4 py-2 rounded-lg transition-colors font-medium bg-surface text-text-muted hover:bg-surface-hover"
+        >
+            Upload JSON
+        </button>
+    </div>
+
+    <!-- Single Mode Form -->
+    <form id="single-form" onsubmit="submitSingle(event)" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium mb-2 text-text">Content *</label>
+            <textarea
+                id="single-content"
+                rows="6"
+                required
+                placeholder="Enter knowledge content..."
+                class="w-full px-4 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text resize-none"
+            ></textarea>
+        </div>
+
+        <!-- Metadata -->
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-sm font-medium text-text">Metadata (Optional)</label>
+                <button type="button" onclick="addMetadata()" class="text-sm text-primary hover:text-primary-dark flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Field
+                </button>
+            </div>
+            <div id="metadata-fields" class="space-y-2"></div>
+        </div>
+
+        <button
+            type="submit"
+            id="single-submit"
+            class="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        >
+            <svg id="single-loading" class="w-5 h-5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg id="single-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span id="single-text">Ingest Document</span>
+        </button>
+    </form>
+
+    <!-- Batch Mode Form -->
+    <form id="batch-form" onsubmit="submitBatch(event)" class="space-y-4 hidden">
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-sm font-medium text-text">Content Items *</label>
+                <button type="button" onclick="addBatchItem()" class="text-sm text-primary hover:text-primary-dark flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Item
+                </button>
+            </div>
+            <div id="batch-items" class="space-y-4">
+                <div class="batch-item border border-border rounded-lg p-4 bg-surface">
+                    <div class="flex gap-2 mb-2">
+                        <textarea rows="3" placeholder="Item 1..." class="flex-1 px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text resize-none"></textarea>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-xs font-medium text-text-muted">Item Metadata (Optional)</label>
+                            <button type="button" onclick="addItemMetadata(this)" class="text-xs text-primary hover:text-primary-dark flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add
+                            </button>
+                        </div>
+                        <div class="item-metadata space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button
+            type="submit"
+            id="batch-submit"
+            class="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        >
+            <svg id="batch-loading" class="w-5 h-5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg id="batch-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span id="batch-text">Ingest Documents</span>
+        </button>
+    </form>
+
+    <!-- JSON Upload Form -->
+    <form id="json-form" onsubmit="submitJSON(event)" class="space-y-4 hidden">
+        <div>
+            <label class="block text-sm font-medium mb-2 text-text">Upload JSON File *</label>
+            <div class="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                <input
+                    type="file"
+                    id="json-file"
+                    accept=".json"
+                    onchange="handleFileSelect(event)"
+                    class="hidden"
+                />
+                <label for="json-file" class="cursor-pointer">
+                    <svg class="w-12 h-12 mx-auto mb-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="text-text font-medium">Click to upload JSON file</p>
+                    <p class="text-sm text-text-muted mt-2">Format: Array of objects with "content" and optional "metadata"</p>
+                </label>
+                <div id="file-info" class="mt-4 hidden">
+                    <p class="text-sm text-text-muted">Selected: <span id="file-name" class="font-medium text-text"></span></p>
+                    <button type="button" onclick="clearFile()" class="mt-2 text-sm text-error hover:text-error/80">Remove</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-surface border border-border rounded-lg p-4">
+            <p class="text-sm font-medium mb-2 text-text">Expected JSON Format:</p>
+            <pre class="text-xs text-text-muted bg-background p-3 rounded overflow-x-auto"><code>[
+  {
+    "content": "First document content...",
+    "metadata": {
+      "source": "wikipedia",
+      "category": "science"
+    }
+  },
+  {
+    "content": "Second document content...",
+    "metadata": {
+      "source": "book",
+      "category": "history"
+    }
+  }
+]</code></pre>
+        </div>
+
+        <button
+            type="submit"
+            id="json-submit"
+            class="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        >
+            <svg id="json-loading" class="w-5 h-5 hidden animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg id="json-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span id="json-text">Upload & Ingest</span>
+        </button>
+    </form>
+
+    <!-- Success Message -->
+    <div id="result" class="mt-6 p-4 bg-success/10 border border-success/20 rounded-lg hidden">
+        <div class="flex items-center gap-2 text-success mb-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="font-medium">Success!</span>
+        </div>
+        <p id="result-message" class="text-text"></p>
+        <p id="result-ids" class="text-sm text-text-muted mt-2"></p>
+    </div>
+
+    <!-- Error Message -->
+    <div id="error" class="mt-6 p-4 bg-error/10 border border-error/20 rounded-lg hidden">
+        <div class="flex items-center gap-2 text-error mb-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="font-medium">Error</span>
+        </div>
+        <p id="error-message" class="text-text"></p>
+    </div>
+</div>
+
+<script>
+const API_BASE = '{{ api_base_url }}';
+let currentMode = 'single';
+let metadata = {};
+let metadataCounter = 0;
+let selectedFile = null;
+
+// Set mode (single/batch/json)
+function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('single-form').classList.toggle('hidden', mode !== 'single');
+    document.getElementById('batch-form').classList.toggle('hidden', mode !== 'batch');
+    document.getElementById('json-form').classList.toggle('hidden', mode !== 'json');
+    
+    document.getElementById('btn-single').className = `px-4 py-2 rounded-lg transition-colors font-medium ${mode === 'single' ? 'bg-primary text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`;
+    document.getElementById('btn-batch').className = `px-4 py-2 rounded-lg transition-colors font-medium ${mode === 'batch' ? 'bg-primary text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`;
+    document.getElementById('btn-json').className = `px-4 py-2 rounded-lg transition-colors font-medium ${mode === 'json' ? 'bg-primary text-white' : 'bg-surface text-text-muted hover:bg-surface-hover'}`;
+}
+
+// Add metadata field
+function addMetadata() {
+    const key = prompt('Enter metadata key:');
+    if (!key || !key.trim()) return;
+    
+    metadata[key] = '';
+    const container = currentMode === 'single' ? 'metadata-fields' : 'batch-metadata';
+    const div = document.createElement('div');
+    div.className = 'flex gap-2';
+    div.id = `meta-${metadataCounter++}`;
+    div.innerHTML = `
+        <input value="${key}" disabled class="flex-1 px-3 py-2 rounded-lg border border-border bg-surface text-text-muted" />
+        <input id="meta-val-${key}" placeholder="Value" oninput="metadata['${key}'] = this.value" class="flex-1 px-3 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text" />
+        <button type="button" onclick="removeMetadata('${key}')" class="px-3 text-error hover:bg-error/10 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
+    `;
+    document.getElementById(container).appendChild(div);
+}
+
+// Remove metadata field
+function removeMetadata(key) {
+    delete metadata[key];
+    document.querySelectorAll(`[id^="meta-"]`).forEach(el => {
+        if (el.querySelector(`input[value="${key}"]`)) el.remove();
+    });
+}
+
+// Add batch item with individual metadata
+function addBatchItem() {
+    const container = document.getElementById('batch-items');
+    const itemIndex = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'batch-item border border-border rounded-lg p-4 bg-surface';
+    div.innerHTML = `
+        <div class="flex gap-2 mb-2">
+            <textarea rows="3" placeholder="Item ${itemIndex + 1}..." class="flex-1 px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text resize-none"></textarea>
+            ${itemIndex > 0 ? '<button type="button" onclick="this.closest(\'.batch-item\').remove()" class="px-3 text-error hover:bg-error/10 rounded-lg self-start transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>' : ''}
+        </div>
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-medium text-text-muted">Item Metadata (Optional)</label>
+                <button type="button" onclick="addItemMetadata(this)" class="text-xs text-primary hover:text-primary-dark flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add
+                </button>
+            </div>
+            <div class="item-metadata space-y-2"></div>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+// Add metadata to a specific batch item
+function addItemMetadata(button) {
+    const key = prompt('Enter metadata key:');
+    if (!key || !key.trim()) return;
+    
+    const metadataContainer = button.nextElementSibling || button.parentElement.nextElementSibling.querySelector('.item-metadata');
+    const div = document.createElement('div');
+    div.className = 'flex gap-2';
+    div.innerHTML = `
+        <input value="${key}" disabled class="flex-1 px-2 py-1 text-xs rounded border border-border bg-background text-text-muted" />
+        <input placeholder="Value" class="flex-1 px-2 py-1 text-xs rounded border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text" />
+        <button type="button" onclick="this.parentElement.remove()" class="px-2 text-error hover:bg-error/10 rounded text-xs">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </button>
+    `;
+    metadataContainer.appendChild(div);
+}
+
+// Show result
+function showResult(data) {
+    document.getElementById('result').classList.remove('hidden');
+    document.getElementById('result-message').textContent = data.message;
+    document.getElementById('result-ids').textContent = `Document ID(s): ${Array.isArray(data.document_id) ? data.document_id.join(', ') : data.document_id} | Count: ${data.count}`;
+    document.getElementById('error').classList.add('hidden');
+}
+
+// Show error
+function showError(msg) {
+    document.getElementById('error').classList.remove('hidden');
+    document.getElementById('error-message').textContent = msg;
+    document.getElementById('result').classList.add('hidden');
+}
+
+// Submit single document
+async function submitSingle(e) {
+    e.preventDefault();
+    const adminKey = document.getElementById('admin-key').value.trim();
+    const content = document.getElementById('single-content').value.trim();
+    
+    if (!adminKey || !content) {
+        showError('Please fill in all required fields');
+        return;
+    }
+
+    const btn = document.getElementById('single-submit');
+    const loading = document.getElementById('single-loading');
+    const icon = document.getElementById('single-icon');
+    const text = document.getElementById('single-text');
+    
+    btn.disabled = true;
+    loading.classList.remove('hidden');
+    icon.classList.add('hidden');
+    text.textContent = 'Ingesting...';
+
+    try {
+        const payload = {
+            content: content,
+            ...(Object.keys(metadata).length > 0 && { metadata: metadata })
+        };
+        
+        const response = await fetch(`${API_BASE}/api/knowledge`, {
+            method: 'POST',
+            headers: {
+                'X-ADMIN-API-KEY': adminKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showResult(data);
+            document.getElementById('single-content').value = '';
+            metadata = {};
+            document.getElementById('metadata-fields').innerHTML = '';
+        } else {
+            showError(data.detail || 'An error occurred');
+        }
+    } catch (error) {
+        showError(error.message || 'Network error occurred');
+    } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+        icon.classList.remove('hidden');
+        text.textContent = 'Ingest Document';
+    }
+}
+
+// Submit batch documents with individual metadata
+async function submitBatch(e) {
+    e.preventDefault();
+    const adminKey = document.getElementById('admin-key').value.trim();
+    const batchItems = Array.from(document.getElementById('batch-items').children);
+    
+    if (!adminKey || batchItems.length === 0) {
+        showError('Please add at least one content item');
+        return;
+    }
+
+    // Extract content and metadata for each item
+    const items = batchItems.map(itemDiv => {
+        const textarea = itemDiv.querySelector('textarea');
+        const content = textarea ? textarea.value.trim() : '';
+        
+        // Extract metadata from this item
+        const metadataInputs = itemDiv.querySelectorAll('.item-metadata .flex input');
+        const itemMetadata = {};
+        for (let i = 0; i < metadataInputs.length; i += 2) {
+            const keyInput = metadataInputs[i];
+            const valueInput = metadataInputs[i + 1];
+            if (keyInput && valueInput && valueInput.value.trim()) {
+                itemMetadata[keyInput.value] = valueInput.value.trim();
+            }
+        }
+        
+        return {
+            content: content,
+            ...(Object.keys(itemMetadata).length > 0 && { metadata: itemMetadata })
+        };
+    }).filter(item => item.content);
+
+    if (items.length === 0) {
+        showError('Please add at least one content item');
+        return;
+    }
+
+    const btn = document.getElementById('batch-submit');
+    const loading = document.getElementById('batch-loading');
+    const icon = document.getElementById('batch-icon');
+    const text = document.getElementById('batch-text');
+    
+    btn.disabled = true;
+    loading.classList.remove('hidden');
+    icon.classList.add('hidden');
+    text.textContent = 'Ingesting...';
+
+    try {
+        const payload = { content: items };
+        
+        const response = await fetch(`${API_BASE}/api/knowledge`, {
+            method: 'POST',
+            headers: {
+                'X-ADMIN-API-KEY': adminKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showResult(data);
+            // Reset form
+            document.getElementById('batch-items').innerHTML = `
+                <div class="batch-item border border-border rounded-lg p-4 bg-surface">
+                    <div class="flex gap-2 mb-2">
+                        <textarea rows="3" placeholder="Item 1..." class="flex-1 px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text resize-none"></textarea>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-xs font-medium text-text-muted">Item Metadata (Optional)</label>
+                            <button type="button" onclick="addItemMetadata(this)" class="text-xs text-primary hover:text-primary-dark flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add
+                            </button>
+                        </div>
+                        <div class="item-metadata space-y-2"></div>
+                    </div>
+                </div>
+            `;
+        } else {
+            showError(data.detail || 'An error occurred');
+        }
+    } catch (error) {
+        showError(error.message || 'Network error occurred');
+    } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+        icon.classList.remove('hidden');
+        text.textContent = `Ingest ${items.length} Document(s)`;
+    }
+}
+
+// Handle JSON file selection
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.json')) {
+        showError('Please select a JSON file');
+        return;
+    }
+    
+    selectedFile = file;
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-info').classList.remove('hidden');
+}
+
+// Clear selected file
+function clearFile() {
+    selectedFile = null;
+    document.getElementById('json-file').value = '';
+    document.getElementById('file-info').classList.add('hidden');
+}
+
+// Submit JSON file
+async function submitJSON(e) {
+    e.preventDefault();
+    const adminKey = document.getElementById('admin-key').value.trim();
+    
+    if (!adminKey) {
+        showError('Admin API key is required');
+        return;
+    }
+    
+    if (!selectedFile) {
+        showError('Please select a JSON file');
+        return;
+    }
+
+    const btn = document.getElementById('json-submit');
+    const loading = document.getElementById('json-loading');
+    const icon = document.getElementById('json-icon');
+    const text = document.getElementById('json-text');
+    
+    btn.disabled = true;
+    loading.classList.remove('hidden');
+    icon.classList.add('hidden');
+    text.textContent = 'Processing...';
+
+    try {
+        const fileContent = await selectedFile.text();
+        const jsonData = JSON.parse(fileContent);
+        
+        // Validate JSON structure
+        if (!Array.isArray(jsonData)) {
+            throw new Error('JSON must be an array of objects');
+        }
+        
+        // Validate each item
+        const items = jsonData.map((item, index) => {
+            if (!item.content || typeof item.content !== 'string') {
+                throw new Error(`Item ${index + 1}: missing or invalid "content" field`);
+            }
+            return {
+                content: item.content.trim(),
+                ...(item.metadata && typeof item.metadata === 'object' && { metadata: item.metadata })
+            };
+        }).filter(item => item.content);
+
+        if (items.length === 0) {
+            throw new Error('No valid items found in JSON file');
+        }
+
+        const payload = { content: items };
+        
+        const response = await fetch(`${API_BASE}/api/knowledge`, {
+            method: 'POST',
+            headers: {
+                'X-ADMIN-API-KEY': adminKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showResult(data);
+            clearFile();
+        } else {
+            showError(data.detail || 'An error occurred');
+        }
+    } catch (error) {
+        showError(error.message || 'Invalid JSON file');
+    } finally {
+        btn.disabled = false;
+        loading.classList.add('hidden');
+        icon.classList.remove('hidden');
+        text.textContent = 'Upload & Ingest';
+    }
+}
+</script>
+{% endblock %}

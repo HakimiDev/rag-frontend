@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}RAG Chat{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--primary)',
+                        'primary-dark': 'var(--primary-dark)',
+                        secondary: 'var(--secondary)',
+                        success: 'var(--success)',
+                        error: 'var(--error)',
+                        background: 'var(--background)',
+                        surface: 'var(--surface)',
+                        text: 'var(--text)',
+                        'text-muted': 'var(--text-muted)',
+                        border: 'var(--border)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ============================================
+           THEME CUSTOMIZATION - Edit these values!
+           ============================================ */
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --error: #ef4444;
+            --background: #ffffff;
+            --surface: #f9fafb;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+        }
+        
+        [data-theme="dark"] {
+            --primary: #60a5fa;
+            --primary-dark: #3b82f6;
+            --secondary: #a78bfa;
+            --success: #34d399;
+            --error: #f87171;
+            --background: #111827;
+            --surface: #1f2937;
+            --text: #f9fafb;
+            --text-muted: #9ca3af;
+            --border: #374151;
+        }
+        
+        body {
+            background: var(--background);
+            color: var(--text);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--surface); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        
+        /* Smooth Transitions */
+        * { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-background">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-surface border-b border-border shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav class="flex items-center justify-between h-16">
+                <a href="/chat" id="logo-link" class="flex items-center gap-3 font-bold text-xl text-text hover:opacity-80 transition-opacity">
+                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <span>RAG Chat</span>
+                </a>
+                <div class="flex items-center gap-2">
+                    <a href="/chat" id="chat-link" class="px-4 py-2 rounded-lg transition-colors font-medium {% if '/chat' in request.url.path or request.url.path == '/' %}bg-primary text-white{% else %}text-text-muted hover:text-text hover:bg-surface{% endif %}">
+                        Chat
+                    </a>
+                    <a href="/admin" target="_blank" class="px-4 py-2 rounded-lg transition-colors font-medium text-text-muted hover:text-text hover:bg-surface">
+                        Admin
+                    </a>
+                    <button id="theme-toggle" class="p-2 rounded-lg transition-colors text-text-muted hover:text-text hover:bg-surface" aria-label="Toggle theme">
+                        <!-- Sun icon (light mode) -->
+                        <svg id="theme-icon-light" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <!-- Moon icon (dark mode) -->
+                        <svg id="theme-icon-dark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Theme Toggle Functionality
+        (function() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIconLight = document.getElementById('theme-icon-light');
+            const themeIconDark = document.getElementById('theme-icon-dark');
+            const html = document.documentElement;
+            
+            // Get saved theme or default to light
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            
+            // Apply saved theme
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    html.setAttribute('data-theme', 'dark');
+                    themeIconLight.classList.remove('hidden');
+                    themeIconDark.classList.add('hidden');
+                } else {
+                    html.removeAttribute('data-theme');
+                    themeIconLight.classList.add('hidden');
+                    themeIconDark.classList.remove('hidden');
+                }
+                localStorage.setItem('theme', theme);
+            }
+            
+            // Initialize theme
+            applyTheme(savedTheme);
+            
+            // Toggle theme on button click
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                applyTheme(newTheme);
+            });
+        })();
+    </script>
+</body>
+</html>
